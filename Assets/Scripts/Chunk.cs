@@ -18,22 +18,15 @@ public class Chunk : MonoBehaviour {
 	protected MeshCollider meshCollider;
 	protected MeshFilter meshFilter;
 
-    Vector3 offset;
-
+    Vector3 offset0;
+    Vector3 offset1;
+    Vector3 offset2;
     public int seed;
     float baseHeight = 10;
 
 
     public float frequency = 0.025f;
     public float amplitude = 1;
-    public int GetByte(Vector3 worldPos)
-    {
-        worldPos -= transform.position;
-        int x = Mathf.FloorToInt(worldPos.x);
-        int y = Mathf.FloorToInt(worldPos.y);
-        int z = Mathf.FloorToInt(worldPos.z);
-        return GetByte(x, y, z);
-    }
 
     public static Chunk GetChunk(Vector3 wPos)
     {
@@ -58,19 +51,21 @@ public class Chunk : MonoBehaviour {
 		meshRenderer = GetComponent<MeshRenderer>();
 		meshCollider = GetComponent<MeshCollider>();
 		meshFilter = GetComponent<MeshFilter>();
+        Generate();
     }
 
     void Update()
     {
-        Generate();
+        //Generate();
     }
 
 
     void Generate()
     {
         Random.InitState(seed);
-        offset = new Vector3(Random.value * 1000, Random.value * 1000, Random.value * 1000);
-
+        offset0 = new Vector3(Random.value * 1000, Random.value * 1000, Random.value * 1000);
+        offset1 = new Vector3(Random.value * 1000, Random.value * 1000, Random.value * 1000);
+        offset2 = new Vector3(Random.value * 1000, Random.value * 1000, Random.value * 1000);
         map = new int[width, height, width];
         heightMap = new int[width, width];
         GenerateHeightMap();
@@ -105,12 +100,23 @@ public class Chunk : MonoBehaviour {
 
     int CalculateHeight(Vector3 wPos)
     {
-        float x = (wPos.x + offset.x) * frequency;
-        float z = (wPos.z + offset.z) * frequency;
+        float x0 = (wPos.x + offset0.x) * frequency;
+        float y0 = (wPos.y + offset0.y) * frequency;
+        float z0 = (wPos.z + offset0.z) * frequency;
 
-        float noise = Noise.Generate(x, z) * amplitude;
+        float x1 = (wPos.x + offset1.x) * frequency * 2;
+        float y1 = (wPos.y + offset1.y) * frequency * 2;
+        float z1 = (wPos.z + offset1.z) * frequency * 2;
 
-        return Mathf.FloorToInt(noise + baseHeight);
+        float x2 = (wPos.x + offset2.x) * frequency / 4;
+        float y2 = (wPos.y + offset2.y) * frequency / 4;
+        float z2 = (wPos.z + offset2.z) * frequency / 4;
+
+        float noise0 = Noise.Generate(x0, z0, y0) * amplitude * 6;
+        float noise1 = Noise.Generate(x1, z1, y1) * amplitude / 4;
+        float noise2 = Noise.Generate(x2, z2, y2) * amplitude * 8;
+
+        return Mathf.FloorToInt(noise0 + noise1 + noise2+ baseHeight);
     }
 
     int CalculateType(Vector3 wPos)
@@ -123,27 +129,25 @@ public class Chunk : MonoBehaviour {
 
         float heightMapValue = CalculateHeight(wPos);
 
-        if (wPos.y < 5)
+        if (wPos.y < 3)
         {
-            return 2;
+            return 4;
         }
 
         if (wPos.y == heightMapValue)
         {
-            return 1;
-        }
-        else if (wPos.y < heightMapValue && wPos.y > heightMapValue - 5)
-        {
             return 3;
+        }
+        else if (wPos.y < heightMapValue && wPos.y > heightMapValue - 8)
+        {
+            return 1;
         }
         else if (wPos.y > heightMapValue)
         {
             return 0;
         }
-        else
-        {
-            return 5;
-        }
+
+        return 3;
     }
 
 	public void BuildChunk()
@@ -217,7 +221,6 @@ public class Chunk : MonoBehaviour {
 		Vector2 uvCorner = new Vector2(0.00f, 0.75f);
 
         uvCorner.x += (float)(brick - 1) / 4;
-        uvCorner.y -= (float)Mathf.Floor(brick/4) * uvWidth.x;
         uvs.Add(uvCorner);
 		uvs.Add(new Vector2(uvCorner.x, uvCorner.y + uvWidth.y));
 		uvs.Add(new Vector2(uvCorner.x + uvWidth.x, uvCorner.y + uvWidth.y));
@@ -247,8 +250,8 @@ public class Chunk : MonoBehaviour {
     bool CheckBuildFace (int x, int y, int z)
 	{
 		if ( y < 0) return false;
-		int brick = GetByte(x,y,z);
-		switch (brick)
+		int type = GetLocalId(x,y,z);
+		switch (type)
 		{
 		case 0: 
 			return true;
@@ -257,59 +260,49 @@ public class Chunk : MonoBehaviour {
 		}
 	}
 
-    int GetByte (int x, int y , int z) {
-        //y坐标是否在Chunk内
-		if ((y < 0) || (y >= height))
-			return 0;
+    public int GetLocalId(int x, int y, int z)
+    {
 
-        //X/Z坐标是否在Chunk外
-        if ((x < 0) || (z < 0) || (x >= width) || (z >= width))
+        if (y < 0 || y > height - 1)
         {
             return 0;
-
         }
-        return map[x,y,z];
-	}
 
-	public bool SetBrick(byte brick, Vector3 worldPos){
-		worldPos -= transform.position;
-		return SetBrick (brick, Mathf.FloorToInt(worldPos.x),Mathf.FloorToInt(worldPos.y),Mathf.FloorToInt(worldPos.z));
-	}
+        int id = 0;
+        if ((x < 0) || (z < 0) || (x >= width) || (z >= width))
+        {
+            id = GetWorldId(new Vector3(x, y, z) + transform.position);
+            return id;
+        }
 
-	public bool SetBrick(byte brick, int x, int y, int z){
-		if ((x < 0) || (y < 0) || (z < 0) || (x >= width) || (y >= height || (z >= width))) {
-			return false;
-		}
-		if (map [x, y, z] == brick) return false;
-		map [x, y, z] = brick;
-        BuildChunk();
+        id = CalculateType(new Vector3(x, y, z) + transform.position);
+        return id;
+    }
 
-		if (x == 0) {
-			Chunk chunk = GetChunk(new Vector3(x - 2,y,z) + transform.position);
-			if (chunk != null){
-				chunk.BuildChunk();
-			}
-		}
-		if (x == width - 1) {
-			Chunk chunk = GetChunk(new Vector3(x + 2,y,z) + transform.position);
-			if (chunk != null){
-                chunk.BuildChunk();
-			}
-		}
-		if (z == 0) {
-			Chunk chunk = GetChunk(new Vector3(x,y,z - 2) + transform.position);
-			if (chunk != null){
-                chunk.BuildChunk();
-			}
-		}
-		if (z == width - 1) {
-			Chunk chunk = GetChunk(new Vector3(x,y,z + 2) + transform.position);
-			if (chunk != null){
-                chunk.BuildChunk();
-			}
-		}
-		return true;
-	}
+    public int GetWorldId(Vector3 position)
+    {
+        if (position.y < 0f || position.y >= height)
+        {
+            return 0;
+        }
+        int id = 0;
+        Chunk chunk = GetChunk(position);
+        if (chunk != null)
+        {
+            Vector3 chunkPosition = chunk.transform.position;
+
+            int x = Mathf.FloorToInt(position.x - chunkPosition.x);
+            int y = Mathf.FloorToInt(position.y - chunkPosition.y);
+            int z = Mathf.FloorToInt(position.z - chunkPosition.z);
+
+            id = chunk.GetLocalId(x, y, z);
+        }
+        else
+        {
+            id = CalculateType(position);
+        }
+        return id;
+    }
 
 }
 
