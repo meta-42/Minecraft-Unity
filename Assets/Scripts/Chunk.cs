@@ -109,9 +109,9 @@ public class Chunk : MonoBehaviour
         float y2 = (wPos.y + offset2.y) * frequency / 4;
         float z2 = (wPos.z + offset2.z) * frequency / 4;
 
-        float noise0 = Noise.Generate(x0, z0, y0) * amplitude;
-        float noise1 = Noise.Generate(x1, z1, y1) * amplitude / 2;
-        float noise2 = Noise.Generate(x2, z2, y2) * amplitude / 4;
+        float noise0 = Noise.Generate(x0, y0, z0) * amplitude;
+        float noise1 = Noise.Generate(x1, y1, z1) * amplitude / 2;
+        float noise2 = Noise.Generate(x2, y2, z2) * amplitude / 4;
 
         //在采样结果上，叠加上baseHeight，限制随机生成的高度下限
         return Mathf.FloorToInt(noise0 + noise1 + noise2 + baseHeight);
